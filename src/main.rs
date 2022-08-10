@@ -1,13 +1,11 @@
-//! Blinks the LED on a Pico board
-//!
-//! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
 
-use bsp::entry;
+use bsp::{entry, hal::timer::Alarm};
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_time::duration::Microseconds;
 use embedded_time::fixed_point::FixedPoint;
 use panic_probe as _;
 
@@ -20,6 +18,7 @@ use bsp::hal::{
     clocks::{init_clocks_and_plls, Clock},
     pac,
     sio::Sio,
+    timer,
     watchdog::Watchdog,
 };
 
@@ -54,15 +53,26 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    // Configure GPIO25 as an output
     let mut led_pin = pins.led.into_push_pull_output();
+    let mut button_pin = pins.gpio15.into_pull_up_input();
+
+    led_pin.set_high().unwrap();
+
+    let mut timer = timer::Timer::new(pac.TIMER, &mut pac.RESETS);
+
+    let mut alarm_0 = timer.alarm_0().unwrap();
+
+    alarm_0.schedule(Microseconds(5000000_u32));
 
     loop {
-        info!("on!");
-        led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        info!("off!");
-        led_pin.set_low().unwrap();
-        delay.delay_ms(500);
+        if alarm_0.finished() {
+            led_pin.set_low();
+        }
+        if button_pin.is_low().unwrap() {
+            led_pin.set_high();
+            alarm_0.schedule(Microseconds(5000000_u32));
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "rp2040-project-template"
+name = "touch-table"
 version = "0.1.0"
 
 [dependencies]
@@ -22,6 +22,9 @@ rp-pico = "0.4"
 # If you're not going to use a Board Support Package you'll need these:
 # rp2040-hal = { version="0.5", features=["rt"] }
 # rp2040-boot2 = "0.2"
+
+[target.thumbv6m-none-eabi]
+runner = "elf2uf2-rs -d"
 
 # cargo build/run
 [profile.dev]
