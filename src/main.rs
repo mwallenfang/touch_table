@@ -156,6 +156,7 @@ fn main() -> ! {
 
     // Configure GPIO25 as an output
     let mut led_pin = pins.led.into_push_pull_output();
+    let mut button_pin = pins.gpio21.into_pull_up_input();
 
     let mut tens_a = pins.gpio13.into_push_pull_output();
     let mut tens_b = pins.gpio12.into_push_pull_output();
@@ -164,6 +165,7 @@ fn main() -> ! {
     let mut tens_e = pins.gpio0.into_push_pull_output();
     let mut tens_f = pins.gpio14.into_push_pull_output();
     let mut tens_g = pins.gpio15.into_push_pull_output();
+    let mut tens_dot = pins.gpio3.into_push_pull_output();
 
     let mut ones_a = pins.gpio9.into_push_pull_output();
     let mut ones_b = pins.gpio8.into_push_pull_output();
@@ -172,19 +174,33 @@ fn main() -> ! {
     let mut ones_e = pins.gpio4.into_push_pull_output();
     let mut ones_f = pins.gpio10.into_push_pull_output();
     let mut ones_g = pins.gpio11.into_push_pull_output();
+    let mut ones_dot = pins.gpio7.into_push_pull_output();
 
     led_pin.set_high().unwrap();
 
     let mut timer = timer::Timer::new(pac.TIMER, &mut pac.RESETS);
 
-    let mut alarm_0 = timer.alarm_0().unwrap();
+    let mut alarm_segment_display = timer.alarm_0().unwrap();
 
-    alarm_0.schedule(Microseconds(5000000_u32));
-    let mut number = 99;
+    let mut alarm_power = timer.alarm_1().unwrap();
+
+    alarm_power.schedule(Microseconds(15000000_u32));
+
+    alarm_segment_display.schedule(Microseconds(1000000_u32));
+    let mut minutes_left = 15;
+
+    let mut tens_digit = 8;
+    let mut ones_digit = 8;
 
     loop {
-        let tens_digit = (number - (number % 10)) / 10;
-        let ones_digit = number % 10;
+        if minutes_left == 0 {
+            tens_digit = 1;
+            ones_digit = 1;
+        } else {
+            tens_digit = (minutes_left - (minutes_left % 10)) / 10;
+            ones_digit = minutes_left % 10;
+        }
+
         tens_a
             .set_state(number_lookup[tens_digit as usize][0])
             .unwrap();
@@ -229,11 +245,26 @@ fn main() -> ! {
             .set_state(number_lookup[ones_digit as usize][6])
             .unwrap();
 
-        delay.delay_ms(100);
-        number -= 1;
+        // If the button is set reset the time to 15 minutes and restart the alarms
+        if button_pin.is_low().unwrap() {
+            led_pin.set_high().unwrap();
+            minutes_left = 15;
+            alarm_power.schedule(Microseconds(15000000_u32));
+            alarm_segment_display.schedule(Microseconds(1000000_u32));
+        }
 
-        if number < -1 {
-            number = 99;
+        // Check if the segment display should update
+        if alarm_segment_display.finished() {
+            // If the time is not up yet reschedule the alarm
+            if minutes_left > 0 {
+                minutes_left -= 1;
+                alarm_segment_display.schedule(Microseconds(1000000_u32));
+            }
+        }
+
+        // If the power alarm is finished turn off the power
+        if alarm_power.finished() {
+            led_pin.set_low().unwrap();
         }
         // if button_pin.is_low().unwrap() {
         //     led_pin.set_high();
